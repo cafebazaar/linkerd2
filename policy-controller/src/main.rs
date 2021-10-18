@@ -7,6 +7,7 @@ use linkerd_policy_controller::k8s::DefaultPolicy;
 use linkerd_policy_controller::{admin, admission};
 use linkerd_policy_controller_core::IpNet;
 use std::net::SocketAddr;
+use std::convert::TryFrom;
 use structopt::StructOpt;
 use tokio::{sync::watch, time};
 use tracing::{debug, info, info_span, instrument, Instrument};
@@ -77,8 +78,13 @@ async fn main() -> Result<()> {
     // Load a Kubernetes client from the environment (check for in-cluster configuration first).
     //
     // TODO support --kubeconfig and --context command-line arguments.
-    let client = kube::Client::try_default()
+    let mut config = kube::Config::infer()
         .await
+        .context("failed to infer kubernetes config")?;
+
+    config.accept_invalid_certs = true
+
+    let client = kube::Client::try_from(config)
         .context("failed to initialize kubernetes client")?;
 
     // Spawn an admin server, failing readiness checks until the index is updated.
